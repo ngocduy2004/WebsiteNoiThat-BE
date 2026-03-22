@@ -4,6 +4,10 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+// Duy thêm 3 dòng này vào nè:
+use App\Models\ProductImage;
+use App\Models\ProductAttribute;
+use App\Models\ProductSaleItem;
 
 class Product extends Model
 {
@@ -21,7 +25,7 @@ class Product extends Model
     ];
     public $timestamps = false;
 
-    protected $appends = ['thumbnail_url', 'formatted_attributes'];
+    // protected $appends = ['thumbnail_url', 'formatted_attributes'];
 
 
     public function category()
