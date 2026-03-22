@@ -23,7 +23,7 @@ class DatabaseSeeder extends Seeder
             PromotionSeeder::class,
             SettingSeeder::class,
             PostSeeder::class,
-            Order_ItemSeeder::class,
+            Order_itemSeeder::class,
             TopicSeeder::class,
             OrderSeeder::class,
             ContactSeeder::class,
