@@ -96,13 +96,13 @@ class ProductController extends Controller
 
         $total = Product::count(); // Lưu ý: Count này chưa chuẩn xác nếu có filter search, nhưng mình giữ theo luồng cũ của bạn.
 
-        $products->transform(function ($product) {
-            if ($product->thumbnail) {
-                // asset() sẽ tự lấy APP_URL từ Railway gán vào
-                $product->thumbnail = asset('storage/' . $product->thumbnail);
-            }
-            return $product;
-        });
+        // $products->transform(function ($product) {
+        //     if ($product->thumbnail) {
+        //         // asset() sẽ tự lấy APP_URL từ Railway gán vào
+        //         $product->thumbnail = asset('storage/' . $product->thumbnail);
+        //     }
+        //     return $product;
+        // });
 
         return response()->json([
             'status' => true,
