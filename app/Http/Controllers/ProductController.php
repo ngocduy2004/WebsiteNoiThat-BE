@@ -251,7 +251,8 @@ class ProductController extends Controller
         return response()->json([
             'status' => true,
             'message' => 'Lấy chi tiết sản phẩm thành công',
-            'data' => $product
+            'product' => $product, // Đổi 'data' thành 'product' cho khớp với Front-end
+            'data' => $product     // Hoặc để cả hai cho chắc ăn
         ]);
     }
 
