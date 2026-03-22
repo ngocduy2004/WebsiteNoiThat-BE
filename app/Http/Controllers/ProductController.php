@@ -96,9 +96,18 @@ class ProductController extends Controller
 
         $total = Product::count(); // Lưu ý: Count này chưa chuẩn xác nếu có filter search, nhưng mình giữ theo luồng cũ của bạn.
 
+        $products->transform(function ($product) {
+            if ($product->thumbnail) {
+                // asset() sẽ tự lấy APP_URL từ Railway gán vào
+                $product->thumbnail = asset('storage/' . $product->thumbnail);
+            }
+            return $product;
+        });
+
         return response()->json([
             'status' => true,
             'data' => $products,
+            'products' => $products, // Thêm dòng này để "chiều" Front-end nếu nó gọi .products
             'total' => $total
         ]);
     }
@@ -225,8 +234,14 @@ class ProductController extends Controller
                     ->where('product_sale.date_end', '>=', $now);  // Chưa kết thúc
             })
             ->select(
-                'products.*', // Lấy toàn bộ cột bảng products
-                'product_sale_items.price_sale as sale_price', // Lấy giá sale
+                'products.id', // Chỉ rõ lấy ID của bảng products
+                'products.name',
+                'products.category_id',
+                'products.thumbnail',
+                'products.content',
+                'products.price_buy',
+                'products.status',
+                'product_sale_items.price_sale as sale_price',
                 'product_sale.date_end as sale_end_date'
             )
             ->where('products.id', $id)
