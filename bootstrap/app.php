@@ -12,7 +12,12 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        $middleware->validateCsrfTokens(except: [
+            'api/*', // Bỏ qua kiểm tra CSRF cho tất cả các route API
+        ]);
+
+        // Nếu bạn dùng Sanctum/Session để lưu giỏ hàng, thêm dòng này:
+        $middleware->statefulApi();
         
     })
     ->withExceptions(function (Exceptions $exceptions): void {
