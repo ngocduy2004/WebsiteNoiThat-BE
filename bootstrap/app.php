@@ -12,9 +12,15 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->validateCsrfTokens(except: [
-            'api/*', // Bỏ qua kiểm tra CSRF cho tất cả các route API
-        ]);
+       // Thêm dòng này để ưu tiên xử lý CORS
+    $middleware->append(\Illuminate\Http\Middleware\HandleCors::class);
+
+    // Tin tưởng Proxy Railway (Sửa lỗi 405 Method Not Allowed)
+    $middleware->trustProxies(at: '*');
+
+    $middleware->validateCsrfTokens(except: [
+        'api/*', 
+    ]);
         
     })
     ->withExceptions(function (Exceptions $exceptions): void {
