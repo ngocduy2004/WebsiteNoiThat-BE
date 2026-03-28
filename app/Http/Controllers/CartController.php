@@ -19,65 +19,36 @@ class CartController extends Controller
 
      */
 
-    private function loadCartWithProducts($cart)
+   // CartController.php
+private function loadCartWithProducts($cart)
+{
+    $now = Carbon::now('Asia/Ho_Chi_Minh')->toDateTimeString();
+    
+    // Lấy tên bảng có cả prefix từ config của Laravel
+    $saleItemTable = DB::getTablePrefix() . 'product_sale_items';
+    $saleTable = DB::getTablePrefix() . 'product_sale';
+    $productTable = (new Product())->getTable();
 
-    {
-
-        $now = Carbon::now('Asia/Ho_Chi_Minh')->toDateTimeString();
-
-
-
-        $cart->load([
-
-            'items.product' => function ($query) use ($now) {
-
-                // Lấy tên bảng thực tế từ Model để tránh sai Prefix/Case-sensitive
-
-                $productTable = (new Product())->getTable();
-
-                $saleItemTable = 'product_sale_items'; // Kiểm tra chính xác tên bảng này trong DB là hoa hay thường
-
-                $saleTable = 'product_sale';
-
-
-
-                $query->select([
-
-                    "$productTable.*",
-
-                    DB::raw("(
-
-                SELECT price_sale
-
-                FROM $saleItemTable
-
-                JOIN $saleTable ON $saleTable.id = $saleItemTable.product_sale_id
-
-                WHERE $saleItemTable.product_id = $productTable.id
-
-                AND $saleTable.status = 1
-
-                AND $saleTable.date_begin <= ?
-
-                AND $saleTable.date_end >= ?
-
-                ORDER BY price_sale ASC
-
-                LIMIT 1
-
-            ) as sale_price")
-
-                ])->setBindings([$now, $now], 'select');
-
-            }
-
-        ]);
-
-
-
-        return $cart;
-
-    }
+    $cart->load([
+        'items.product' => function ($query) use ($now, $saleItemTable, $saleTable, $productTable) {
+            $query->select([
+                "$productTable.*",
+                DB::raw("(
+                    SELECT price_sale 
+                    FROM $saleItemTable
+                    JOIN $saleTable ON $saleTable.id = $saleItemTable.product_sale_id
+                    WHERE $saleItemTable.product_id = $productTable.id
+                    AND $saleTable.status = 1
+                    AND $saleTable.date_begin <= '$now'
+                    AND $saleTable.date_end >= '$now'
+                    ORDER BY price_sale ASC
+                    LIMIT 1
+                ) as sale_price")
+            ]);
+        }
+    ]);
+    return $cart;
+}
 
     /**
 
