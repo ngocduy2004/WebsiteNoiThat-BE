@@ -101,7 +101,7 @@ class CartController extends Controller
                 return response()->json(['message' => 'Bạn chưa đăng nhập'], 401);
 
             $request->validate([
-                'product_id' => 'required|exists:products,id',
+                'product_id' => 'required|exists:NND_products,id',
                 'quantity' => 'required|integer|min:1',
             ]);
 
