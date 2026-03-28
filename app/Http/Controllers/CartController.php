@@ -22,8 +22,8 @@ class CartController extends Controller
             'items.product' => function ($query) use ($now) {
                 // Lấy tên bảng thực tế từ Model để tránh sai Prefix/Case-sensitive
                 $productTable = (new Product())->getTable();
-                $saleItemTable = 'NND_product_sale_items'; // Kiểm tra chính xác tên bảng này trong DB là hoa hay thường
-                $saleTable = 'NND_product_sale';
+                $saleItemTable = 'product_sale_items'; // Kiểm tra chính xác tên bảng này trong DB là hoa hay thường
+                $saleTable = 'product_sale';
 
                 $query->select([
                     "$productTable.*",
