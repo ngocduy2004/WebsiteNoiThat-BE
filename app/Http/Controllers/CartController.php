@@ -20,38 +20,35 @@ class CartController extends Controller
      */
 
    // CartController.php
-private function loadCartWithProducts($cart)
-{
-    $now = Carbon::now('Asia/Ho_Chi_Minh')->toDateTimeString();
 
-    // Lấy tên bảng chuẩn từ Model (đã bao gồm prefix)
-    $productTable = (new Product())->getTable();
-    
-    // Nếu bạn dùng DB::raw, bạn phải lấy đúng tên bảng có prefix
-    $saleItemTable = DB::getTablePrefix() . 'product_sale_items';
-    $saleTable = DB::getTablePrefix() . 'product_sale';
+    private function loadCartWithProducts($cart)
+    {
+        $now = Carbon::now('Asia/Ho_Chi_Minh')->toDateTimeString();
+        $productTable = (new Product())->getTable();
+        $saleItemTable = DB::getTablePrefix() . 'product_sale_items';
+        $saleTable = DB::getTablePrefix() . 'product_sale';
 
-    $cart->load([
-        'items.product' => function ($query) use ($now, $productTable, $saleItemTable, $saleTable) {
-            $query->select([
-                "$productTable.*",
-                DB::raw("(
-                    SELECT price_sale 
-                    FROM $saleItemTable
-                    JOIN $saleTable ON $saleTable.id = $saleItemTable.product_sale_id
-                    WHERE $saleItemTable.product_id = $productTable.id
-                    AND $saleTable.status = 1
-                    AND $saleTable.date_begin <= ?
-                    AND $saleTable.date_end >= ?
-                    ORDER BY price_sale ASC
-                    LIMIT 1
-                ) as sale_price")
-            ])->setBindings([$now, $now], 'select');
-        }
-    ]);
+        $cart->load([
+            'items.product' => function ($query) use ($now, $productTable, $saleItemTable, $saleTable) {
+                $query->select([
+                    "$productTable.*",
+                    DB::raw("(
+                        SELECT price_sale 
+                        FROM $saleItemTable
+                        JOIN $saleTable ON $saleTable.id = $saleItemTable.product_sale_id
+                        WHERE $saleItemTable.product_id = $productTable.id
+                        AND $saleTable.status = 1
+                        AND $saleTable.date_begin <= ?
+                        AND $saleTable.date_end >= ?
+                        ORDER BY price_sale ASC
+                        LIMIT 1
+                    ) as sale_price")
+                ])->setBindings([$now, $now], 'select');
+            }
+        ]);
 
-    return $cart;
-}
+        return $cart;
+    }
 
     /**
 
@@ -59,240 +56,120 @@ private function loadCartWithProducts($cart)
 
      */
 
+   /**
+     * Helper: Tính giá thực tế (Fix lỗi Prefix bảng trên Production)
+     */
     private function getFinalPrice($productId)
-
     {
-
         $now = Carbon::now('Asia/Ho_Chi_Minh');
-
         $product = Product::find($productId);
 
+        if (!$product) return 0;
 
-
-        if (!$product)
-
-            return 0;
-
-
-
-        // ✅ Sửa: Bỏ 'nnd_' vì DB::table sẽ tự động thêm prefix từ file config
-
+        // Dùng Query Builder để Laravel tự động quản lý Prefix bảng (nnd_...)
         $saleInfo = DB::table('product_sale_items')
-
             ->join('product_sale', 'product_sale_items.product_sale_id', '=', 'product_sale.id')
-
             ->where('product_sale_items.product_id', $productId)
-
             ->where('product_sale.status', 1)
-
             ->where('product_sale.date_begin', '<=', $now)
-
             ->where('product_sale.date_end', '>=', $now)
-
             ->orderBy('product_sale_items.price_sale', 'asc')
-
             ->select('product_sale_items.price_sale')
-
             ->first();
 
-
-
         return $saleInfo ? $saleInfo->price_sale : $product->price_buy;
-
     }
-
-
 
     // 1. LẤY GIỎ HÀNG
 
-    public function getCart()
-
+  public function getCart()
     {
-
         $user = auth()->user();
-
-        if (!$user)
-
-            return response()->json(['message' => 'Chưa đăng nhập'], 401);
-
-
+        if (!$user) return response()->json(['message' => 'Chưa đăng nhập'], 401);
 
         $cart = Cart::where('user_id', $user->id)->where('status', 'active')->first();
 
-
-
-        if (!$cart)
-
-            return response()->json(['cart' => null]);
-
-
+        if (!$cart) return response()->json(['cart' => ['items' => []]]);
 
         $cart = $this->loadCartWithProducts($cart);
 
-
-
-        $cart->setRelation('items', $cart->items->filter(function ($item) {
-
-            return $item->product !== null;
-
-        })->values());
-
-
+        // Lọc bỏ các item có sản phẩm bị xóa
+        $cart->setRelation('items', $cart->items->filter(fn($item) => $item->product !== null)->values());
 
         return response()->json(['cart' => $cart]);
-
     }
 
 
 
     // 2. THÊM VÀO GIỎ
 
+  // 2. THÊM VÀO GIỎ
     public function addToCart(Request $request)
-
     {
-
         try {
-
             $request->validate([
-
                 'product_id' => 'required|exists:products,id',
-
                 'quantity' => 'required|integer|min:1',
-
             ]);
 
-
-
             $user = auth()->user();
-
-            if (!$user)
-
-                return response()->json(['message' => 'Chưa đăng nhập'], 401);
-
-
+            if (!$user) return response()->json(['message' => 'Phiên đăng nhập hết hạn'], 401);
 
             $finalPrice = $this->getFinalPrice($request->product_id);
 
+            // Tìm hoặc tạo giỏ hàng mới
+            $cart = Cart::firstOrCreate(['user_id' => $user->id, 'status' => 'active']);
 
-
-            // Đảm bảo Model Cart đã có: protected $table = 'NND_carts';
-
-            $cart = Cart::firstOrCreate(
-
-                ['user_id' => $user->id, 'status' => 'active']
-
-            );
-
-
-
+            // Cập nhật hoặc tạo mới CartItem
             $cartItem = CartItem::where('cart_id', $cart->id)
-
                 ->where('product_id', $request->product_id)
-
                 ->first();
 
-
-
             if ($cartItem) {
-
                 $cartItem->quantity += $request->quantity;
-
                 $cartItem->price = $finalPrice;
-
                 $cartItem->save();
-
             } else {
-
                 CartItem::create([
-
                     'cart_id' => $cart->id,
-
                     'product_id' => $request->product_id,
-
                     'quantity' => $request->quantity,
-
                     'price' => $finalPrice,
-
                 ]);
-
             }
 
-
-
-            $cart = $this->loadCartWithProducts($cart);
-
-
-
             return response()->json([
-
                 'message' => 'Đã thêm vào giỏ hàng',
-
-                'cart' => $cart
-
+                'cart' => $this->loadCartWithProducts($cart)
             ]);
 
         } catch (\Exception $e) {
-
-            // Trả về lỗi chi tiết để bạn đọc được trên trình duyệt (Network tab)
-
             return response()->json([
-
                 'error' => $e->getMessage(),
-
-                'line' => $e->getLine(),
-
-                'file' => $e->getFile()
-
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
             ], 500);
-
         }
-
     }
-
     // 3. CẬP NHẬT
 
     public function updateCart(Request $request)
-
     {
-
         $request->validate([
-
             'product_id' => 'required',
-
             'quantity' => 'required|integer|min:1',
-
         ]);
-
-
-
         $user = auth()->user();
-
         $cart = Cart::where('user_id', $user->id)->where('status', 'active')->first();
-
-
-
         if (!$cart)
-
             return response()->json(['message' => 'Giỏ hàng không tồn tại'], 404);
 
-
-
         $item = CartItem::where('cart_id', $cart->id)->where('product_id', $request->product_id)->first();
-
-
-
         if ($item) {
-
             $item->quantity = $request->quantity;
-
             $item->price = $this->getFinalPrice($request->product_id);
-
             $item->save();
-
         }
-
-
-
         $cart = $this->loadCartWithProducts($cart);
 
         return response()->json(['message' => 'Cập nhật thành công', 'cart' => $cart]);
@@ -300,69 +177,49 @@ private function loadCartWithProducts($cart)
     }
 
 
-
-    // 4. MERGE CART
-
+// 4. MERGE CART (Dùng khi vừa Login xong)
     public function mergeCart(Request $request)
-
     {
+        try {
+            $user = auth()->user();
+            if (!$user) return response()->json(['message' => 'Unauthorized'], 401);
 
-        $user = auth()->user();
+            $cart = Cart::firstOrCreate(['user_id' => $user->id, 'status' => 'active']);
 
-        $cart = Cart::firstOrCreate(['user_id' => $user->id, 'status' => 'active']);
+            if ($request->items && is_array($request->items)) {
+                foreach ($request->items as $itemData) {
+                    // Kiểm tra id sản phẩm có tồn tại không
+                    if (!isset($itemData['product_id'])) continue;
 
+                    $finalPrice = $this->getFinalPrice($itemData['product_id']);
 
+                    $cartItem = CartItem::where('cart_id', $cart->id)
+                        ->where('product_id', $itemData['product_id'])
+                        ->first();
 
-        if ($request->items && is_array($request->items)) {
-
-            foreach ($request->items as $itemData) {
-
-                $finalPrice = $this->getFinalPrice($itemData['product_id']);
-
-
-
-                $cartItem = CartItem::where('cart_id', $cart->id)
-
-                    ->where('product_id', $itemData['product_id'])
-
-                    ->first();
-
-
-
-                if ($cartItem) {
-
-                    $cartItem->quantity += $itemData['quantity'];
-
-                    $cartItem->price = $finalPrice;
-
-                    $cartItem->save();
-
-                } else {
-
-                    CartItem::create([
-
-                        'cart_id' => $cart->id,
-
-                        'product_id' => $itemData['product_id'],
-
-                        'quantity' => $itemData['quantity'],
-
-                        'price' => $finalPrice,
-
-                    ]);
-
+                    if ($cartItem) {
+                        $cartItem->quantity += $itemData['quantity'];
+                        $cartItem->price = $finalPrice;
+                        $cartItem->save();
+                    } else {
+                        CartItem::create([
+                            'cart_id' => $cart->id,
+                            'product_id' => $itemData['product_id'],
+                            'quantity' => $itemData['quantity'],
+                            'price' => $finalPrice,
+                        ]);
+                    }
                 }
-
             }
 
+            return response()->json([
+                'message' => 'Đồng bộ thành công', 
+                'cart' => $this->loadCartWithProducts($cart)
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
         }
-
-        $cart = $this->loadCartWithProducts($cart);
-
-        return response()->json(['message' => 'Đồng bộ thành công', 'cart' => $cart]);
-
     }
-
 
 
     // 5. REMOVE ITEM
