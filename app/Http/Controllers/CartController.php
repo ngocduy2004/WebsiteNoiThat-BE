@@ -20,10 +20,11 @@ class CartController extends Controller
 
         $cart->load([
             'items.product' => function ($query) use ($now) {
-                // Lấy tên bảng thực tế từ Model để tránh sai Prefix/Case-sensitive
-                $productTable = (new Product())->getTable();
-                $saleItemTable = 'product_sale_items'; // Kiểm tra chính xác tên bảng này trong DB là hoa hay thường
-                $saleTable = 'product_sale';
+                $productTable = (new Product())->getTable(); // Trả về NND_products nếu Model chuẩn
+                
+                // ✅ Đã thêm NND_ vào tên bảng
+                $saleItemTable = 'NND_product_sale_items'; 
+                $saleTable = 'NND_product_sale';
 
                 $query->select([
                     "$productTable.*",
@@ -44,6 +45,7 @@ class CartController extends Controller
 
         return $cart;
     }
+
     /**
      * Helper: Tính giá thực tế
      */
@@ -55,15 +57,15 @@ class CartController extends Controller
         if (!$product)
             return 0;
 
-        // ✅ Sửa: Bỏ 'nnd_' vì DB::table sẽ tự động thêm prefix từ file config
-        $saleInfo = DB::table('product_sale_items')
-            ->join('product_sale', 'product_sale_items.product_sale_id', '=', 'product_sale.id')
-            ->where('product_sale_items.product_id', $productId)
-            ->where('product_sale.status', 1)
-            ->where('product_sale.date_begin', '<=', $now)
-            ->where('product_sale.date_end', '>=', $now)
-            ->orderBy('product_sale_items.price_sale', 'asc')
-            ->select('product_sale_items.price_sale')
+        // ✅ Đã thêm NND_ vào tất cả các bảng trong query builder
+        $saleInfo = DB::table('NND_product_sale_items')
+            ->join('NND_product_sale', 'NND_product_sale_items.product_sale_id', '=', 'NND_product_sale.id')
+            ->where('NND_product_sale_items.product_id', $productId)
+            ->where('NND_product_sale.status', 1)
+            ->where('NND_product_sale.date_begin', '<=', $now)
+            ->where('NND_product_sale.date_end', '>=', $now)
+            ->orderBy('NND_product_sale_items.price_sale', 'asc')
+            ->select('NND_product_sale_items.price_sale')
             ->first();
 
         return $saleInfo ? $saleInfo->price_sale : $product->price_buy;
@@ -105,7 +107,6 @@ class CartController extends Controller
 
             $finalPrice = $this->getFinalPrice($request->product_id);
 
-            // Đảm bảo Model Cart đã có: protected $table = 'NND_carts';
             $cart = Cart::firstOrCreate(
                 ['user_id' => $user->id, 'status' => 'active']
             );
@@ -134,7 +135,6 @@ class CartController extends Controller
                 'cart' => $cart
             ]);
         } catch (\Exception $e) {
-            // Trả về lỗi chi tiết để bạn đọc được trên trình duyệt (Network tab)
             return response()->json([
                 'error' => $e->getMessage(),
                 'line' => $e->getLine(),
@@ -142,6 +142,7 @@ class CartController extends Controller
             ], 500);
         }
     }
+
     // 3. CẬP NHẬT
     public function updateCart(Request $request)
     {
