@@ -23,7 +23,7 @@ class CartController extends Controller
 
         $now = Carbon::now('Asia/Ho_Chi_Minh')->toDateTimeString();
 
-        // Lấy tên bảng thực tế (ví dụ: NND_products)
+        // Lấy chính xác tên bảng từ Model (Sẽ tự ra NND_products)
         $productTable = (new Product())->getTable();
         $saleItemTable = DB::getTablePrefix() . 'product_sale_items';
         $saleTable = DB::getTablePrefix() . 'product_sale';
@@ -32,7 +32,7 @@ class CartController extends Controller
             'items.product' => function ($query) use ($now, $productTable, $saleItemTable, $saleTable) {
                 $query->select([
                     "$productTable.*",
-                    // Dùng chính xác biến $productTable.id thay vì hardcode products.id
+                    // SỬA TẠI ĐÂY: Dùng biến $productTable thay vì chữ 'products'
                     DB::raw("(
                     SELECT price_sale 
                     FROM $saleItemTable psi
