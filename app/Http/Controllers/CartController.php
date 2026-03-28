@@ -20,20 +20,25 @@ class CartController extends Controller
 
         $cart->load([
             'items.product' => function ($query) use ($now) {
+                // Lấy tên bảng thực tế từ Model để tránh sai Prefix/Case-sensitive
+                $productTable = (new Product())->getTable();
+                $saleItemTable = 'NND_product_sale_items'; // Kiểm tra chính xác tên bảng này trong DB là hoa hay thường
+                $saleTable = 'NND_product_sale';
+
                 $query->select([
-                    'products.*',
+                    "$productTable.*",
                     DB::raw("(
                 SELECT price_sale 
-                FROM nnd_product_sale_items 
-                JOIN nnd_product_sale ON nnd_product_sale.id = nnd_product_sale_items.product_sale_id
-                WHERE nnd_product_sale_items.product_id = nnd_products.id
-                AND nnd_product_sale.status = 1
-                AND nnd_product_sale.date_begin <= ?
-                AND nnd_product_sale.date_end >= ?
+                FROM $saleItemTable
+                JOIN $saleTable ON $saleTable.id = $saleItemTable.product_sale_id
+                WHERE $saleItemTable.product_id = $productTable.id
+                AND $saleTable.status = 1
+                AND $saleTable.date_begin <= ?
+                AND $saleTable.date_end >= ?
                 ORDER BY price_sale ASC
                 LIMIT 1
             ) as sale_price")
-                ])->setBindings([$now, $now], 'select'); // Truyền tham số an toàn ở đây
+                ])->setBindings([$now, $now], 'select');
             }
         ]);
 
