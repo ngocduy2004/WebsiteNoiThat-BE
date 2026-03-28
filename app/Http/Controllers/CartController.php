@@ -23,14 +23,16 @@ class CartController extends Controller
 private function loadCartWithProducts($cart)
 {
     $now = Carbon::now('Asia/Ho_Chi_Minh')->toDateTimeString();
+
+    // Lấy tên bảng chuẩn từ Model (đã bao gồm prefix)
+    $productTable = (new Product())->getTable();
     
-    // Lấy tên bảng có cả prefix từ config của Laravel
+    // Nếu bạn dùng DB::raw, bạn phải lấy đúng tên bảng có prefix
     $saleItemTable = DB::getTablePrefix() . 'product_sale_items';
     $saleTable = DB::getTablePrefix() . 'product_sale';
-    $productTable = (new Product())->getTable();
 
     $cart->load([
-        'items.product' => function ($query) use ($now, $saleItemTable, $saleTable, $productTable) {
+        'items.product' => function ($query) use ($now, $productTable, $saleItemTable, $saleTable) {
             $query->select([
                 "$productTable.*",
                 DB::raw("(
@@ -39,14 +41,15 @@ private function loadCartWithProducts($cart)
                     JOIN $saleTable ON $saleTable.id = $saleItemTable.product_sale_id
                     WHERE $saleItemTable.product_id = $productTable.id
                     AND $saleTable.status = 1
-                    AND $saleTable.date_begin <= '$now'
-                    AND $saleTable.date_end >= '$now'
+                    AND $saleTable.date_begin <= ?
+                    AND $saleTable.date_end >= ?
                     ORDER BY price_sale ASC
                     LIMIT 1
                 ) as sale_price")
-            ]);
+            ])->setBindings([$now, $now], 'select');
         }
     ]);
+
     return $cart;
 }
 
