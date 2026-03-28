@@ -86,9 +86,9 @@ class CartController extends Controller
     }
 
     // 2. THÊM VÀO GIỎ
-    public function addToCart(Request $request)
-    {
-        // ✅ SỬA LẠI: Bỏ 'nnd_' trong validation. Laravel sẽ tự kiểm tra bảng 'nnd_products'
+  public function addToCart(Request $request)
+{
+    try {
         $request->validate([
             'product_id' => 'required|exists:products,id', 
             'quantity' => 'required|integer|min:1',
@@ -99,6 +99,7 @@ class CartController extends Controller
 
         $finalPrice = $this->getFinalPrice($request->product_id);
 
+        // Đảm bảo Model Cart đã có: protected $table = 'NND_carts';
         $cart = Cart::firstOrCreate(
             ['user_id' => $user->id, 'status' => 'active']
         );
@@ -126,8 +127,15 @@ class CartController extends Controller
             'message' => 'Đã thêm vào giỏ hàng',
             'cart' => $cart
         ]);
+    } catch (\Exception $e) {
+        // Trả về lỗi chi tiết để bạn đọc được trên trình duyệt (Network tab)
+        return response()->json([
+            'error' => $e->getMessage(),
+            'line' => $e->getLine(),
+            'file' => $e->getFile()
+        ], 500);
     }
-
+}
     // 3. CẬP NHẬT
     public function updateCart(Request $request)
     {
