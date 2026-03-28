@@ -5,12 +5,12 @@ use App\Models\CartItem;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
 
 
 class CartController extends Controller
-
 {
 
     /**
@@ -19,7 +19,7 @@ class CartController extends Controller
 
      */
 
-   // CartController.php
+    // CartController.php
 
     private function loadCartWithProducts($cart)
     {
@@ -56,7 +56,7 @@ class CartController extends Controller
 
      */
 
-   /**
+    /**
      * Helper: Tính giá thực tế (Fix lỗi Prefix bảng trên Production)
      */
     private function getFinalPrice($productId)
@@ -64,7 +64,8 @@ class CartController extends Controller
         $now = Carbon::now('Asia/Ho_Chi_Minh');
         $product = Product::find($productId);
 
-        if (!$product) return 0;
+        if (!$product)
+            return 0;
 
         // Dùng Query Builder để Laravel tự động quản lý Prefix bảng (nnd_...)
         $saleInfo = DB::table('product_sale_items')
@@ -82,14 +83,16 @@ class CartController extends Controller
 
     // 1. LẤY GIỎ HÀNG
 
-  public function getCart()
+    public function getCart()
     {
         $user = auth()->user();
-        if (!$user) return response()->json(['message' => 'Chưa đăng nhập'], 401);
+        if (!$user)
+            return response()->json(['message' => 'Chưa đăng nhập'], 401);
 
         $cart = Cart::where('user_id', $user->id)->where('status', 'active')->first();
 
-        if (!$cart) return response()->json(['cart' => ['items' => []]]);
+        if (!$cart)
+            return response()->json(['cart' => ['items' => []]]);
 
         $cart = $this->loadCartWithProducts($cart);
 
@@ -103,24 +106,29 @@ class CartController extends Controller
 
     // 2. THÊM VÀO GIỎ
 
-  // 2. THÊM VÀO GIỎ
+    // 2. THÊM VÀO GIỎ
     public function addToCart(Request $request)
     {
         try {
+            // Dùng auth('sanctum') nếu bạn dùng Laravel Sanctum
+            $user = auth('sanctum')->user() ?? auth()->user();
+
+            if (!$user) {
+                return response()->json(['message' => 'Bạn chưa đăng nhập'], 401);
+            }
+
             $request->validate([
                 'product_id' => 'required|exists:products,id',
                 'quantity' => 'required|integer|min:1',
             ]);
 
-            $user = auth()->user();
-            if (!$user) return response()->json(['message' => 'Phiên đăng nhập hết hạn'], 401);
-
             $finalPrice = $this->getFinalPrice($request->product_id);
 
-            // Tìm hoặc tạo giỏ hàng mới
-            $cart = Cart::firstOrCreate(['user_id' => $user->id, 'status' => 'active']);
+            // Sử dụng Eloquent thay vì DB::table để tự động nhận Prefix bảng
+            $cart = Cart::updateOrCreate(
+                ['user_id' => $user->id, 'status' => 'active']
+            );
 
-            // Cập nhật hoặc tạo mới CartItem
             $cartItem = CartItem::where('cart_id', $cart->id)
                 ->where('product_id', $request->product_id)
                 ->first();
@@ -144,9 +152,10 @@ class CartController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            // Log lỗi ra để check trên Railway Dashboard
+            Log::error("Giỏ hàng lỗi: " . $e->getMessage());
             return response()->json([
-                'error' => $e->getMessage(),
-                'file' => $e->getFile(),
+                'error' => 'Lỗi Server: ' . $e->getMessage(),
                 'line' => $e->getLine()
             ], 500);
         }
@@ -177,19 +186,21 @@ class CartController extends Controller
     }
 
 
-// 4. MERGE CART (Dùng khi vừa Login xong)
+    // 4. MERGE CART (Dùng khi vừa Login xong)
     public function mergeCart(Request $request)
     {
         try {
             $user = auth()->user();
-            if (!$user) return response()->json(['message' => 'Unauthorized'], 401);
+            if (!$user)
+                return response()->json(['message' => 'Unauthorized'], 401);
 
             $cart = Cart::firstOrCreate(['user_id' => $user->id, 'status' => 'active']);
 
             if ($request->items && is_array($request->items)) {
                 foreach ($request->items as $itemData) {
                     // Kiểm tra id sản phẩm có tồn tại không
-                    if (!isset($itemData['product_id'])) continue;
+                    if (!isset($itemData['product_id']))
+                        continue;
 
                     $finalPrice = $this->getFinalPrice($itemData['product_id']);
 
@@ -213,7 +224,7 @@ class CartController extends Controller
             }
 
             return response()->json([
-                'message' => 'Đồng bộ thành công', 
+                'message' => 'Đồng bộ thành công',
                 'cart' => $this->loadCartWithProducts($cart)
             ]);
         } catch (\Exception $e) {
@@ -225,7 +236,6 @@ class CartController extends Controller
     // 5. REMOVE ITEM
 
     public function removeItem($productId)
-
     {
 
         $user = auth()->user();
@@ -249,7 +259,6 @@ class CartController extends Controller
     // 6. CLEAR CART
 
     public function clearCart()
-
     {
 
         $user = auth()->user();
