@@ -18,9 +18,12 @@ class CartController extends Controller
      */
     private function loadCartWithProducts($cart)
     {
-        if (!$cart) return $cart;
+        if (!$cart)
+            return $cart;
 
         $now = Carbon::now('Asia/Ho_Chi_Minh')->toDateTimeString();
+
+        // Lấy tên bảng thực tế (ví dụ: NND_products)
         $productTable = (new Product())->getTable();
         $saleItemTable = DB::getTablePrefix() . 'product_sale_items';
         $saleTable = DB::getTablePrefix() . 'product_sale';
@@ -29,24 +32,24 @@ class CartController extends Controller
             'items.product' => function ($query) use ($now, $productTable, $saleItemTable, $saleTable) {
                 $query->select([
                     "$productTable.*",
+                    // Dùng chính xác biến $productTable.id thay vì hardcode products.id
                     DB::raw("(
-                        SELECT price_sale 
-                        FROM $saleItemTable psi
-                        JOIN $saleTable ps ON ps.id = psi.product_sale_id
-                        WHERE psi.product_id = $productTable.id
-                        AND ps.status = 1
-                        AND ps.date_begin <= ?
-                        AND ps.date_end >= ?
-                        ORDER BY price_sale ASC
-                        LIMIT 1
-                    ) as sale_price")
+                    SELECT price_sale 
+                    FROM $saleItemTable psi
+                    JOIN $saleTable ps ON ps.id = psi.product_sale_id
+                    WHERE psi.product_id = $productTable.id
+                    AND ps.status = 1
+                    AND ps.date_begin <= ?
+                    AND ps.date_end >= ?
+                    ORDER BY price_sale ASC
+                    LIMIT 1
+                ) as sale_price")
                 ])->setBindings([$now, $now], 'select');
             }
         ]);
 
         return $cart;
     }
-
     /**
      * Helper: Tính giá thực tế (Dùng Query Builder tự động xử lý Prefix)
      */
@@ -55,7 +58,8 @@ class CartController extends Controller
         $now = Carbon::now('Asia/Ho_Chi_Minh');
         $product = Product::find($productId);
 
-        if (!$product) return 0;
+        if (!$product)
+            return 0;
 
         $saleInfo = DB::table('product_sale_items')
             ->join('product_sale', 'product_sale_items.product_sale_id', '=', 'product_sale.id')
@@ -74,11 +78,13 @@ class CartController extends Controller
     public function getCart()
     {
         $user = auth('sanctum')->user() ?? auth()->user();
-        if (!$user) return response()->json(['message' => 'Chưa đăng nhập'], 401);
+        if (!$user)
+            return response()->json(['message' => 'Chưa đăng nhập'], 401);
 
         $cart = Cart::where('user_id', $user->id)->where('status', 'active')->first();
 
-        if (!$cart) return response()->json(['cart' => ['items' => []]]);
+        if (!$cart)
+            return response()->json(['cart' => ['items' => []]]);
 
         $cart = $this->loadCartWithProducts($cart);
         $cart->setRelation('items', $cart->items->filter(fn($item) => $item->product !== null)->values());
@@ -91,7 +97,8 @@ class CartController extends Controller
     {
         try {
             $user = auth('sanctum')->user() ?? auth()->user();
-            if (!$user) return response()->json(['message' => 'Bạn chưa đăng nhập'], 401);
+            if (!$user)
+                return response()->json(['message' => 'Bạn chưa đăng nhập'], 401);
 
             $request->validate([
                 'product_id' => 'required|exists:products,id',
@@ -134,7 +141,8 @@ class CartController extends Controller
     public function updateCart(Request $request)
     {
         $user = auth('sanctum')->user() ?? auth()->user();
-        if (!$user) return response()->json(['message' => 'Unauthorized'], 401);
+        if (!$user)
+            return response()->json(['message' => 'Unauthorized'], 401);
 
         $request->validate([
             'product_id' => 'required',
@@ -142,7 +150,8 @@ class CartController extends Controller
         ]);
 
         $cart = Cart::where('user_id', $user->id)->where('status', 'active')->first();
-        if (!$cart) return response()->json(['message' => 'Giỏ hàng rỗng'], 404);
+        if (!$cart)
+            return response()->json(['message' => 'Giỏ hàng rỗng'], 404);
 
         $item = CartItem::where('cart_id', $cart->id)->where('product_id', $request->product_id)->first();
         if ($item) {
@@ -163,17 +172,19 @@ class CartController extends Controller
     {
         try {
             $user = auth('sanctum')->user() ?? auth()->user();
-            if (!$user) return response()->json(['message' => 'Unauthorized'], 401);
+            if (!$user)
+                return response()->json(['message' => 'Unauthorized'], 401);
 
             $cart = DB::transaction(function () use ($user, $request) {
                 $cart = Cart::firstOrCreate(['user_id' => $user->id, 'status' => 'active']);
 
                 if ($request->items && is_array($request->items)) {
                     foreach ($request->items as $itemData) {
-                        if (!isset($itemData['product_id'])) continue;
+                        if (!isset($itemData['product_id']))
+                            continue;
 
                         $finalPrice = $this->getFinalPrice($itemData['product_id']);
-                        
+
                         CartItem::updateOrCreate(
                             ['cart_id' => $cart->id, 'product_id' => $itemData['product_id']],
                             ['price' => $finalPrice, 'quantity' => DB::raw("quantity + " . ($itemData['quantity'] ?? 1))]
@@ -197,7 +208,7 @@ class CartController extends Controller
     {
         $user = auth('sanctum')->user() ?? auth()->user();
         $cart = Cart::where('user_id', $user->id)->where('status', 'active')->first();
-        
+
         if ($cart) {
             CartItem::where('cart_id', $cart->id)->where('product_id', $productId)->delete();
             $cart = $this->loadCartWithProducts($cart);
@@ -211,7 +222,7 @@ class CartController extends Controller
     {
         $user = auth('sanctum')->user() ?? auth()->user();
         $cart = Cart::where('user_id', $user->id)->where('status', 'active')->first();
-        
+
         if ($cart) {
             CartItem::where('cart_id', $cart->id)->delete();
             $cart->setRelation('items', collect([]));
